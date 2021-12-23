@@ -163,7 +163,9 @@ namespace SpeedMann.SleepingPlayers
 		public bool ItemEquality(Item a, Item b)
 		{
 			bool equals = false;
-			if(a is ItemGunAsset && b is ItemGunAsset)
+			ItemAsset itemAssetA = Assets.find(EAssetType.ITEM, a.id) as ItemAsset;
+			ItemAsset itemAssetB = Assets.find(EAssetType.ITEM, b.id) as ItemAsset;
+			if (itemAssetA is ItemGunAsset && itemAssetB is ItemGunAsset)
             {
 				equals = a != null && b != null
 								&& a.id == b.id
