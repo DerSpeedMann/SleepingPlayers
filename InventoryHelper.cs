@@ -21,12 +21,12 @@ namespace SpeedMann.SleepingPlayers
 			{
                 // Check Clothing Items and remove removed Clothing
                 #region checkClothing
-                List<KeyValuePair<ClothingType, Item>> clothingItems = new List<KeyValuePair<ClothingType, Item>>();
+                List<KeyValuePair<StorageType, Item>> clothingItems = new List<KeyValuePair<StorageType, Item>>();
 				if (!GetClothingItems(player, ref clothingItems))
 					return false;
 
 				Logger.Log("Found " + clothingItems.Count + " Clothing items");
-				foreach (KeyValuePair<ClothingType, Item> item in clothingItems)
+				foreach (KeyValuePair<StorageType, Item> item in clothingItems)
 				{
 					List<Item> itemList;
 					bool found = false;
@@ -41,42 +41,42 @@ namespace SpeedMann.SleepingPlayers
 								break;
 							}
 						}
-					}
+                    }
 					if (!found)
 					{
 						Logger.Log("Removed " + item.Key);
 						//TODO: Fix Remove, currently only deequip
 						switch (item.Key)
 						{
-							case ClothingType.Backpack:
+							case StorageType.Backpack:
 								clearInventoryPage(player, 3);
 								player.Player.clothing.thirdClothes.backpack = 0;
 								player.Player.clothing.askWearBackpack(0, 0, new byte[0], true);
 								break;
-							case ClothingType.Vest:
+							case StorageType.Vest:
 								clearInventoryPage(player, 4);
 								player.Player.clothing.thirdClothes.vest = 0;
 								player.Player.clothing.askWearVest(0, 0, new byte[0], true);
 								break;
-							case ClothingType.Shirt:
+							case StorageType.Shirt:
 								clearInventoryPage(player, 5);
 								player.Player.clothing.thirdClothes.shirt = 0;
 								player.Player.clothing.askWearShirt(0, 0, new byte[0], true);
 								break;
-							case ClothingType.Pants:
+							case StorageType.Pants:
 								clearInventoryPage(player, 6);
 								player.Player.clothing.thirdClothes.pants = 0;
 								player.Player.clothing.askWearPants(0, 0, new byte[0], true);
 								break;
-							case ClothingType.Glasses:
+							case StorageType.Glasses:
 								player.Player.clothing.thirdClothes.glasses = 0;
 								player.Player.clothing.askWearGlasses(0, 0, new byte[0], true);
 								break;
-							case ClothingType.Hat:
+							case StorageType.Hat:
 								player.Player.clothing.thirdClothes.hat = 0;
 								player.Player.clothing.askWearHat(0, 0, new byte[0], true);
 								break;
-							case ClothingType.Mask:
+							case StorageType.Mask:
 								player.Player.clothing.thirdClothes.mask = 0;
 								player.Player.clothing.askWearMask(0, 0, new byte[0], true);
 								break;
@@ -116,7 +116,14 @@ namespace SpeedMann.SleepingPlayers
 								removedIndexes.Add(p1);
 							}
 						}
-						Logger.Log("Removed " + removedIndexes.Count + " in page " + p);
+
+						if (p <= 1)
+							Logger.Log("Removed " + (StorageType)p);
+						else if (p <= 6)
+							Logger.Log("Removed " + removedIndexes.Count + " Items in " + (StorageType)p);
+						else
+							Logger.Log("Removed " + removedIndexes.Count + " Items in page" + p);
+
 						removedIndexes.Sort((a, b) => b.CompareTo(a));
 						foreach (byte i in removedIndexes)
                         {
@@ -199,10 +206,10 @@ namespace SpeedMann.SleepingPlayers
 		}
 		public bool GetAllItems(UnturnedPlayer player, ref List<Item> foundItems)
         {
-			List<KeyValuePair<ClothingType, Item>> foundClothings = new List<KeyValuePair<ClothingType, Item>>();
+			List<KeyValuePair<StorageType, Item>> foundClothings = new List<KeyValuePair<StorageType, Item>>();
 			if(GetClothingItems(player, ref foundClothings))
             {
-				foreach (KeyValuePair<ClothingType, Item> item in foundClothings)
+				foreach (KeyValuePair<StorageType, Item> item in foundClothings)
 				{
 					foundItems.Add(item.Value);
 				}
@@ -236,7 +243,7 @@ namespace SpeedMann.SleepingPlayers
 			}
             return returnv;
         }
-		public bool GetClothingItems(UnturnedPlayer player, ref List<KeyValuePair<ClothingType, Item>> foundItems)
+		public bool GetClothingItems(UnturnedPlayer player, ref List<KeyValuePair<StorageType, Item>> foundItems)
 		{
 			bool returnv = false;
 			if (foundItems == null) return returnv;
@@ -258,40 +265,40 @@ namespace SpeedMann.SleepingPlayers
 					if(item != null)
                     {
 						byte quality = 0;
-						ClothingType type = ClothingType.None;
+						StorageType type = StorageType.Unknown;
 
 						switch (item)
                         {
 							case ItemHatAsset hat:
 								quality = player.Player.clothing.hatQuality;
-								type = ClothingType.Hat;
+								type = StorageType.Hat;
 								break;
 							case ItemMaskAsset mask:
 								quality = player.Player.clothing.maskQuality;
-								type = ClothingType.Mask;
+								type = StorageType.Mask;
 								break;
 							case ItemGlassesAsset glasses:
 								quality = player.Player.clothing.glassesQuality;
-								type = ClothingType.Glasses;
+								type = StorageType.Glasses;
 								break;
 							case ItemBackpackAsset backpack:
 								quality = player.Player.clothing.backpackQuality;
-								type = ClothingType.Backpack;
+								type = StorageType.Backpack;
 								break;
 							case ItemVestAsset vest:
 								quality = player.Player.clothing.vestQuality;
-								type = ClothingType.Vest;
+								type = StorageType.Vest;
 								break;
 							case ItemShirtAsset shirt:
 								quality = player.Player.clothing.shirtQuality;
-								type = ClothingType.Shirt;
+								type = StorageType.Shirt;
 								break;
 							case ItemPantsAsset pants:
 								quality = player.Player.clothing.pantsQuality;
-								type = ClothingType.Pants;
+								type = StorageType.Pants;
 								break;
                         }
-						foundItems.Add(new KeyValuePair<ClothingType, Item>(type, new Item(item.id, true, quality)));
+						foundItems.Add(new KeyValuePair<StorageType, Item>(type, new Item(item.id, true, quality)));
 					}
                 }
 				returnv = true;
@@ -396,17 +403,20 @@ namespace SpeedMann.SleepingPlayers
 			}
 			return returnv;
 		}
-		public enum ClothingType
+		public enum StorageType
         {
-			None,
-			Hat,
-			Mask,
-			Glasses,
-			Backpack,
-			Vest,
-			Shirt,
-			Pants
-        }
+			PrimaryWeapon = 0,
+			SecondaryWeapon = 1,
+			Hands = 2,
+			Backpack = 3,
+			Vest = 4,
+			Shirt = 5,
+			Pants = 6,
+			Hat = 7,
+			Mask = 8,
+			Glasses = 9,
+			Unknown = 10,
+		}
 	}
 }
 

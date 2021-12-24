@@ -37,7 +37,6 @@ namespace SpeedMann.SleepingPlayers
 
 			connectingPlayerInventorys = new Dictionary<CSteamID, Dictionary<ushort, List<Item>>>();
 
-			U.Events.OnBeforePlayerConnected += BeforePlayerConnected;
 			U.Events.OnPlayerConnected += OnPlayerConnected;
 			U.Events.OnPlayerDisconnected += OnPlayerDisconnected;
 			Provider.onLoginSpawning += OnLoginPlayerSpawning;
@@ -47,9 +46,9 @@ namespace SpeedMann.SleepingPlayers
 		{
 			Logger.LogWarning("Unloading...");
 
-			U.Events.OnBeforePlayerConnected -= BeforePlayerConnected;
 			U.Events.OnPlayerConnected -= OnPlayerConnected;
 			U.Events.OnPlayerDisconnected -= OnPlayerDisconnected;
+			Provider.onLoginSpawning -= OnLoginPlayerSpawning;
 		}
 		private void Update()
 		{
@@ -65,11 +64,8 @@ namespace SpeedMann.SleepingPlayers
 				if (sleepingPlayerTransform == null)
 					sleepingPlayerTransform = findSleepingPlayer(getGroundedPosition(point), radius);
 
-				if (sleepingPlayerTransform == null)
-				{
-					connectingPlayerInventorys.Add(playerID.steamID, null);
-				}
-				else
+				// loading Inventory
+				if (sleepingPlayerTransform != null)
 				{ 			
 					Dictionary<ushort, List<Item>> savedItems;
 					InteractableStorage storage = sleepingPlayerTransform.transform.GetComponent<InteractableStorage>();
@@ -91,39 +87,36 @@ namespace SpeedMann.SleepingPlayers
 						BarricadeManager.destroyBarricade(barricadeDrop, x, y, plant);
 
 						needsNewSpawnpoint = !isValidSpawnPoint(point, ref initialStance);
+						return;
 					}
                     else
                     {
 						Logger.LogError("Error loading SleepingPlayer Storage at: "+ point.ToString() +" for player: " + playerID);
 					}
 				}
+
+				connectingPlayerInventorys.Add(playerID.steamID, null);
 			}
         }
-		private void BeforePlayerConnected(UnturnedPlayer player)
-		{
 
-		}
 		private void OnPlayerConnected(UnturnedPlayer player)
 		{
-			
+			bool sucess = false;
 			Dictionary<ushort, List<Item>> savedItems;
-			if (connectingPlayerInventorys.TryGetValue(player.CSteamID, out savedItems))
-            {
-				bool sucess = false;
-				if (savedItems != null)
-                {
-					sucess = inventoryHelper.UpdateInventory(player, savedItems);
-					Logger.Log("Loading Inventory was " + (!sucess ? "not " : "") + "successful");
-				}			
-				else
-				{
-					sucess = inventoryHelper.ClearAll(player);
-					player.Damage(255, player.Position, EDeathCause.SUICIDE, ELimb.SKULL, player.CSteamID);
-					Logger.Log("Clearing Inventory was " + (!sucess ? "not " : "") + "successful");
-				}
-				connectingPlayerInventorys.Remove(player.CSteamID);
-			}
 			
+			if (connectingPlayerInventorys.TryGetValue(player.CSteamID, out savedItems) && savedItems != null)
+            {
+				sucess = inventoryHelper.UpdateInventory(player, savedItems);
+				Logger.Log("Loading Inventory was " + (!sucess ? "not " : "") + "successful");
+			}
+			else
+			{
+				sucess = inventoryHelper.ClearAll(player);
+				player.Damage(255, player.Position, EDeathCause.SUICIDE, ELimb.SKULL, player.CSteamID);
+				Logger.Log("Clearing Inventory was " + (!sucess ? "not " : "") + "successful");
+			}
+			connectingPlayerInventorys.Remove(player.CSteamID);
+
 		}
 
 		private void OnPlayerDisconnected(UnturnedPlayer player)
@@ -172,7 +165,7 @@ namespace SpeedMann.SleepingPlayers
 			Regions.tryGetCoordinate(center, out x, out y);
 			List<RegionCoordinate> coordinates = new List<RegionCoordinate>() { new RegionCoordinate(x, y) };
 			List<Transform> transforms = new List<Transform>();
-			BarricadeManager.getBarricadesInRadius(center, 2, coordinates, transforms);
+			BarricadeManager.getBarricadesInRadius(center, radius, coordinates, transforms);
 
 			foreach (var transform in transforms)
 			{
