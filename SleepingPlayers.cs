@@ -11,6 +11,7 @@ using SDG.Unturned;
 using UnityEngine;
 using Rocket.Unturned.Enumerations;
 using Steamworks;
+using System;
 
 namespace SpeedMann.SleepingPlayers
 {
@@ -19,6 +20,8 @@ namespace SpeedMann.SleepingPlayers
 		public static SleepingPlayers Instance;
 
 		private InventoryHelper inventoryHelper;
+
+		private float SleepingPlayerSearchRadius = 2;
 
 		private Dictionary<CSteamID, Dictionary<ushort, List<Item>>> connectingPlayerInventorys;
 		public override TranslationList DefaultTranslations
@@ -57,12 +60,10 @@ namespace SpeedMann.SleepingPlayers
         {
             if (needsNewSpawnpoint)
             {
-				float radius = 1;
-
-				Transform sleepingPlayerTransform = findSleepingPlayer(point, radius);
+				Transform sleepingPlayerTransform = findSleepingPlayer(point, SleepingPlayerSearchRadius, playerID.steamID);
 
 				if (sleepingPlayerTransform == null)
-					sleepingPlayerTransform = findSleepingPlayer(getGroundedPosition(point), radius);
+					sleepingPlayerTransform = findSleepingPlayer(getGroundedPosition(point), SleepingPlayerSearchRadius, playerID.steamID);
 
 				// loading Inventory
 				if (sleepingPlayerTransform != null)
@@ -78,15 +79,16 @@ namespace SpeedMann.SleepingPlayers
 						byte y;
 						ushort plant;
 						BarricadeRegion barricadeRegion;
-						if (!BarricadeManager.tryGetRegion(sleepingPlayerTransform, out x, out y, out plant, out barricadeRegion))
+						if (BarricadeManager.tryGetRegion(sleepingPlayerTransform, out x, out y, out plant, out barricadeRegion))
 						{
+							BarricadeDrop barricadeDrop = barricadeRegion.FindBarricadeByRootTransform(sleepingPlayerTransform);
+
+							BarricadeManager.destroyBarricade(barricadeDrop, x, y, plant);
+
+							needsNewSpawnpoint = !isValidSpawnPoint(point, ref initialStance);
 							return;
-						}
-						BarricadeDrop barricadeDrop = barricadeRegion.FindBarricadeByRootTransform(sleepingPlayerTransform);
-
-						BarricadeManager.destroyBarricade(barricadeDrop, x, y, plant);
-
-						needsNewSpawnpoint = !isValidSpawnPoint(point, ref initialStance);
+                        }
+						Logger.LogError("Error destroying Barricade for player: " + playerID);
 						return;
 					}
                     else
@@ -121,13 +123,15 @@ namespace SpeedMann.SleepingPlayers
 
 		private void OnPlayerDisconnected(UnturnedPlayer player)
 		{
-			Vector3 position = new Vector3(player.Position.x, player.Position.y + 1, player.Position.z);
-			Transform barricadeTransform = BarricadeManager.dropBarricade(new Barricade(Configuration.Instance.SleepingPlayerStorageId), null, position, 0, 0, 0, 0, 0);
+			
+			ItemBarricadeAsset asset = (Assets.find(EAssetType.ITEM, Configuration.Instance.SleepingPlayerStorageId) as ItemBarricadeAsset);
+			Vector3 position = new Vector3(player.Position.x, player.Position.y + asset.offset, player.Position.z);
 
-			Interactable2SalvageBarricade barricade = barricadeTransform.transform.GetComponent<Interactable2SalvageBarricade>();
+			Transform barricadeTransform = BarricadeManager.dropBarricade(new Barricade(asset), null, position, 0, 0, 0, player.CSteamID.m_SteamID, 0);
+
 			InteractableStorage storage = barricadeTransform.transform.GetComponent<InteractableStorage>();
 
-			if (barricade != null && storage != null)
+			if (storage != null)
 			{
 				List<Item> items = new List<Item>();
 				inventoryHelper.GetAllItems(player, ref items);
@@ -136,12 +140,45 @@ namespace SpeedMann.SleepingPlayers
 				{
 					storage.items.tryAddItem(item);
 				}
+				Logger.Log("Spawned SleepingPlayer for: " + player.CSteamID + " at " + position.ToString());
 			}
 
 		}
 
-		private Dictionary<ushort, List<Item>> getItemsFromStorage(InteractableStorage storage)
-        {
+		private Transform findSleepingPlayer(Vector3 center, float radius, CSteamID playerID)
+		{
+			byte x;
+			byte y;
+
+			Regions.tryGetCoordinate(center, out x, out y);
+			List<RegionCoordinate> coordinates = new List<RegionCoordinate>() { new RegionCoordinate(x, y) };
+			List<Transform> transforms = new List<Transform>();
+			BarricadeManager.getBarricadesInRadius(center, radius, coordinates, transforms);
+
+			foreach (Transform barricadeTransform in transforms)
+			{
+				if (NearlyEqual(barricadeTransform.position.x, center.x, SleepingPlayerSearchRadius) && NearlyEqual(barricadeTransform.position.z, center.z, SleepingPlayerSearchRadius))
+				{
+
+					Interactable2SalvageBarricade salvageBarricade = barricadeTransform.transform.GetComponent<Interactable2SalvageBarricade>();
+					ItemBarricadeAsset barricadeAsset = getAssetFromBarricadeTransform(barricadeTransform);
+					if(Configuration.Instance.Debug)
+						Logger.Log("Found potential SleepingPlayer, owner: " + (salvageBarricade != null ? salvageBarricade.owner.ToString() : "null") +  " PlayerId: " + playerID.ToString() + 
+							" Location: " + barricadeTransform.position.ToString() + " SearchCenter: " + center);
+
+					if (barricadeAsset != null && barricadeAsset.id == Configuration.Instance.SleepingPlayerStorageId && salvageBarricade != null && salvageBarricade.owner == playerID.m_SteamID)
+                    {
+						return barricadeTransform;
+					}
+
+				}
+
+			}
+			return null;
+		}
+        #region HelperFunctions
+        private static Dictionary<ushort, List<Item>> getItemsFromStorage(InteractableStorage storage)
+		{
 			Dictionary<ushort, List<Item>> savedItems = new Dictionary<ushort, List<Item>>();
 			while (storage.items.items.Count > 0)
 			{
@@ -156,30 +193,6 @@ namespace SpeedMann.SleepingPlayers
 				storage.items.items.RemoveAt(0);
 			}
 			return savedItems;
-		}
-		private Transform findSleepingPlayer(Vector3 center, float radius)
-		{
-			byte x;
-			byte y;
-
-			Regions.tryGetCoordinate(center, out x, out y);
-			List<RegionCoordinate> coordinates = new List<RegionCoordinate>() { new RegionCoordinate(x, y) };
-			List<Transform> transforms = new List<Transform>();
-			BarricadeManager.getBarricadesInRadius(center, radius, coordinates, transforms);
-
-			foreach (var transform in transforms)
-			{
-				if (transform.position.x == center.x && transform.position.z == center.z)
-				{
-
-					ItemBarricadeAsset barricadeAsset = getAssetFromBarricadeTransform(transform);
-
-					if (barricadeAsset != null && barricadeAsset.id == Configuration.Instance.SleepingPlayerStorageId)
-						return transform;
-				}
-
-			}
-			return null;
 		}
 		private static ItemBarricadeAsset getAssetFromBarricadeTransform(Transform transform)
 		{
@@ -237,11 +250,33 @@ namespace SpeedMann.SleepingPlayers
 			}
 			return flag;
 		}
+		public static bool NearlyEqual(double a, double b, double epsilon)
+		{
+			const double MinNormal = 2.2250738585072014E-308d;
+			double absA = Math.Abs(a);
+			double absB = Math.Abs(b);
+			double diff = Math.Abs(a - b);
+
+			if (a.Equals(b))
+			{ // shortcut, handles infinities
+				return true;
+			}
+			else if (a == 0 || b == 0 || absA + absB < MinNormal)
+			{
+				// a or b is zero or both are extremely close to it
+				// relative error is less meaningful here
+				return diff < (epsilon * MinNormal);
+			}
+			else
+			{ // use relative error
+				return diff / (absA + absB) < epsilon;
+			}
+		}
 
 		private static Vector3 getGroundedPosition(Vector3 point, float offset = 0)
 		{
 			return new Vector3(point.x, LevelGround.getHeight(point) + offset, point.z);
 		}
-
-	}
+        #endregion
+    }
 }

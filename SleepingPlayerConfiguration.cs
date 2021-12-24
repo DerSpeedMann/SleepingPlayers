@@ -6,7 +6,7 @@ namespace SpeedMann.SleepingPlayers
 	public class SleepingPlayerConfiguration : IRocketPluginConfiguration
 	{
 		public ushort SleepingPlayerStorageId;
-
+		public bool Debug;
 		public SleepingPlayerConfiguration ()
 		{
 
@@ -15,6 +15,7 @@ namespace SpeedMann.SleepingPlayers
 		public void LoadDefaults()
 		{
 			SleepingPlayerStorageId = 52200;
+			Debug = false;
 		}
 	}
 }

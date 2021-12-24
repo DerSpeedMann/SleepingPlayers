@@ -25,7 +25,8 @@ namespace SpeedMann.SleepingPlayers
 				if (!GetClothingItems(player, ref clothingItems))
 					return false;
 
-				Logger.Log("Found " + clothingItems.Count + " Clothing items");
+				if(SleepingPlayers.Instance.Configuration.Instance.Debug)
+					Logger.Log("Found " + clothingItems.Count + " Clothing items");
 				foreach (KeyValuePair<StorageType, Item> item in clothingItems)
 				{
 					List<Item> itemList;
@@ -116,13 +117,15 @@ namespace SpeedMann.SleepingPlayers
 								removedIndexes.Add(p1);
 							}
 						}
-
-						if (p <= 1)
-							Logger.Log("Removed " + (StorageType)p);
-						else if (p <= 6)
-							Logger.Log("Removed " + removedIndexes.Count + " Items in " + (StorageType)p);
-						else
-							Logger.Log("Removed " + removedIndexes.Count + " Items in page" + p);
+						if(removedIndexes.Count > 0)
+                        {
+							if (p <= 1)
+								Logger.Log("Removed " + (StorageType)p);
+							else if (p <= 6)
+								Logger.Log("Removed " + removedIndexes.Count + " Items in " + (StorageType)p);
+							else
+								Logger.Log("Removed " + removedIndexes.Count + " Items in page" + p);
+						}
 
 						removedIndexes.Sort((a, b) => b.CompareTo(a));
 						foreach (byte i in removedIndexes)
@@ -145,7 +148,9 @@ namespace SpeedMann.SleepingPlayers
 							player.Inventory.forceAddItem(item, false);
 					}
 				}
-				Logger.Log("Added " + counter + " new items");
+				if(counter > 0)
+					Logger.Log("Added " + counter + " new items");
+				
                 #endregion
                 returnv = true;
 			}
