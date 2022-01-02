@@ -43,6 +43,9 @@ namespace SpeedMann.SleepingPlayers
 			U.Events.OnPlayerConnected += OnPlayerConnected;
 			U.Events.OnPlayerDisconnected += OnPlayerDisconnected;
 			Provider.onLoginSpawning += OnLoginPlayerSpawning;
+			BarricadeManager.onOpenStorageRequested += OnOpenStorage;
+			UnturnedPlayerEvents.OnPlayerUpdateGesture += OnGestureChanged;
+
 		}
 
 		protected override void Unload()
@@ -52,53 +55,16 @@ namespace SpeedMann.SleepingPlayers
 			U.Events.OnPlayerConnected -= OnPlayerConnected;
 			U.Events.OnPlayerDisconnected -= OnPlayerDisconnected;
 			Provider.onLoginSpawning -= OnLoginPlayerSpawning;
+			BarricadeManager.onOpenStorageRequested -= OnOpenStorage;
+			UnturnedPlayerEvents.OnPlayerUpdateGesture -= OnGestureChanged;
 		}
 		private void Update()
 		{
 		}
 		private void OnLoginPlayerSpawning(SteamPlayerID playerID, ref Vector3 point, ref float yaw, ref EPlayerStance initialStance, ref bool needsNewSpawnpoint)
         {
-            if (needsNewSpawnpoint)
-            {
-				Transform sleepingPlayerTransform = findSleepingPlayer(point, SleepingPlayerSearchRadius, playerID.steamID);
-
-				if (sleepingPlayerTransform == null)
-					sleepingPlayerTransform = findSleepingPlayer(getGroundedPosition(point), SleepingPlayerSearchRadius, playerID.steamID);
-
-				// loading Inventory
-				if (sleepingPlayerTransform != null)
-				{ 			
-					Dictionary<ushort, List<Item>> savedItems;
-					InteractableStorage storage = sleepingPlayerTransform.transform.GetComponent<InteractableStorage>();
-					if(storage != null)
-                    {
-						savedItems = getItemsFromStorage(storage);
-						connectingPlayerInventorys.Add(playerID.steamID, savedItems);
-
-						byte x;
-						byte y;
-						ushort plant;
-						BarricadeRegion barricadeRegion;
-						if (BarricadeManager.tryGetRegion(sleepingPlayerTransform, out x, out y, out plant, out barricadeRegion))
-						{
-							BarricadeDrop barricadeDrop = barricadeRegion.FindBarricadeByRootTransform(sleepingPlayerTransform);
-
-							BarricadeManager.destroyBarricade(barricadeDrop, x, y, plant);
-
-							needsNewSpawnpoint = !isValidSpawnPoint(point, ref initialStance);
-							return;
-                        }
-						Logger.LogError("Error destroying Barricade for player: " + playerID);
-						return;
-					}
-                    else
-                    {
-						Logger.LogError("Error loading SleepingPlayer Storage at: "+ point.ToString() +" for player: " + playerID);
-					}
-				}
-
-				connectingPlayerInventorys.Add(playerID.steamID, null);
-			}
+            Dictionary<ushort, List<Item>> savedItems = tryGetItemsFromSleepingPlayer(playerID.steamID, point, ref needsNewSpawnpoint, ref initialStance);
+            connectingPlayerInventorys.Add(playerID.steamID, savedItems);
         }
 
 		private void OnPlayerConnected(UnturnedPlayer player)
@@ -123,7 +89,24 @@ namespace SpeedMann.SleepingPlayers
 
 		private void OnPlayerDisconnected(UnturnedPlayer player)
 		{
-			
+            if (!player.Dead)
+            {
+				spawnSleepingPlayer(player);
+			}
+		}
+		private static void OnGestureChanged(UnturnedPlayer player, UnturnedPlayerEvents.PlayerGesture gesture)
+		{
+			if (gesture != UnturnedPlayerEvents.PlayerGesture.InventoryOpen)
+				return;
+			Logger.Log("Inventory Opened!");
+		}
+		private void OnOpenStorage(CSteamID instigator, InteractableStorage storage, ref bool shouldAllow)
+        {
+			//storage.GetComponent<>
+			Logger.Log("Storage Opened!");
+		}
+		public void spawnSleepingPlayer(UnturnedPlayer player)
+        {
 			ItemBarricadeAsset asset = (Assets.find(EAssetType.ITEM, Configuration.Instance.SleepingPlayerStorageId) as ItemBarricadeAsset);
 			Vector3 position = new Vector3(player.Position.x, player.Position.y + asset.offset, player.Position.z);
 
@@ -142,8 +125,46 @@ namespace SpeedMann.SleepingPlayers
 				}
 				Logger.Log("Spawned SleepingPlayer for: " + player.CSteamID + " at " + position.ToString());
 			}
-
 		}
+		public Dictionary<ushort, List<Item>> tryGetItemsFromSleepingPlayer(CSteamID steamID, Vector3 point, ref bool needsNewSpawnpoint, ref EPlayerStance initialStance)
+        {
+			Transform sleepingPlayerTransform = findSleepingPlayer(point, SleepingPlayerSearchRadius, steamID);
+
+			if (sleepingPlayerTransform == null)
+				sleepingPlayerTransform = findSleepingPlayer(getGroundedPosition(point), SleepingPlayerSearchRadius, steamID);
+
+			// loading Inventory
+			if (sleepingPlayerTransform != null)
+			{
+				Dictionary<ushort, List<Item>> savedItems;
+				InteractableStorage storage = sleepingPlayerTransform.transform.GetComponent<InteractableStorage>();
+				if (storage != null)
+				{
+					savedItems = getItemsFromStorage(storage);
+
+					byte x;
+					byte y;
+					ushort plant;
+					BarricadeRegion barricadeRegion;
+					if (BarricadeManager.tryGetRegion(sleepingPlayerTransform, out x, out y, out plant, out barricadeRegion))
+					{
+						BarricadeDrop barricadeDrop = barricadeRegion.FindBarricadeByRootTransform(sleepingPlayerTransform);
+
+						BarricadeManager.destroyBarricade(barricadeDrop, x, y, plant);
+
+						needsNewSpawnpoint = !isValidSpawnPoint(point, ref initialStance);
+						return savedItems;
+					}
+					Logger.LogError("Error destroying Barricade for player: " + steamID);
+					return null;
+				}
+				else
+				{
+					Logger.LogError("Error loading SleepingPlayer Storage at: " + point.ToString() + " for player: " + steamID);
+				}
+			}
+			return null;
+        }
 
 		private Transform findSleepingPlayer(Vector3 center, float radius, CSteamID playerID)
 		{

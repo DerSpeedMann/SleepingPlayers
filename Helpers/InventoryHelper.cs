@@ -339,13 +339,13 @@ namespace SpeedMann.SleepingPlayers
 					}
 				}
 				player.Player.inventory.channel.send("tellSlot", ESteamCall.ALL, ESteamPacket.UPDATE_RELIABLE_BUFFER, new object[]
-												{
+				{
 					(byte)0,
 					(byte)0,
 					new byte[0]
 				});
 				player.Player.inventory.channel.send("tellSlot", ESteamCall.ALL, ESteamPacket.UPDATE_RELIABLE_BUFFER, new object[]
-												{
+				{
 					(byte)1,
 					(byte)0,
 					new byte[0]

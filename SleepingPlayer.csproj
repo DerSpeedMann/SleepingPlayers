@@ -70,20 +70,13 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="SleepingPlayerCommands.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SleepingPlayers.cs" />
     <Compile Include="SleepingPlayerConfiguration.cs" />
-    <Compile Include="InventoryHelper.cs" />
+    <Compile Include="Helpers\InventoryHelper.cs" />
+    <Compile Include="Helpers\StorageHelper.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup />
-  <ItemGroup>
-    <None Include="lib\Assembly-CSharp-firstpass.dll" />
-    <None Include="lib\Assembly-CSharp.dll" />
-    <None Include="lib\Rocket.API.dll" />
-    <None Include="lib\Rocket.Core.dll" />
-    <None Include="lib\Rocket.Unturned.dll" />
-    <None Include="lib\UnityEngine.dll" />
-    <None Include="lib\UnityEngine.CoreModule.dll" />
-  </ItemGroup>
 </Project>
