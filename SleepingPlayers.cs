@@ -12,13 +12,15 @@ using UnityEngine;
 using Rocket.Unturned.Enumerations;
 using Steamworks;
 using System;
+using Rocket.Unturned.Chat;
+using SDG.NetTransport;
 
 namespace SpeedMann.SleepingPlayers
 {
 	public class SleepingPlayers : RocketPlugin<SleepingPlayerConfiguration>
 	{
-		public static SleepingPlayers Instance;
-
+		public static SleepingPlayers Inst;
+		public static SleepingPlayerConfiguration Conf;
 		private InventoryHelper inventoryHelper;
 
 		private float SleepingPlayerSearchRadius = 2;
@@ -35,17 +37,21 @@ namespace SpeedMann.SleepingPlayers
 
 		protected override void Load()
 		{
-			Instance = this;
-			inventoryHelper = new InventoryHelper();
+			Inst = this;
+			Conf = Configuration.Instance;
 
+			inventoryHelper = new InventoryHelper();
 			connectingPlayerInventorys = new Dictionary<CSteamID, Dictionary<ushort, List<Item>>>();
+			
+			UnturnedPrivateFields.init();
+			UnturnedPatches.Init();
 
 			U.Events.OnPlayerConnected += OnPlayerConnected;
 			U.Events.OnPlayerDisconnected += OnPlayerDisconnected;
 			Provider.onLoginSpawning += OnLoginPlayerSpawning;
-			BarricadeManager.onOpenStorageRequested += OnOpenStorage;
-			UnturnedPlayerEvents.OnPlayerUpdateGesture += OnGestureChanged;
-
+			UnturnedPlayerEvents.OnPlayerInventoryAdded += OnInventoryUpdated;
+			Level.onPreLevelLoaded += OnPreLevelLoaded;
+			UnturnedPatches.OnPostSleepingPlayerStorageUpdate += OnSleepingPlayerStorageUpdated;
 		}
 
 		protected override void Unload()
@@ -55,34 +61,49 @@ namespace SpeedMann.SleepingPlayers
 			U.Events.OnPlayerConnected -= OnPlayerConnected;
 			U.Events.OnPlayerDisconnected -= OnPlayerDisconnected;
 			Provider.onLoginSpawning -= OnLoginPlayerSpawning;
-			BarricadeManager.onOpenStorageRequested -= OnOpenStorage;
-			UnturnedPlayerEvents.OnPlayerUpdateGesture -= OnGestureChanged;
+			UnturnedPlayerEvents.OnPlayerInventoryAdded -= OnInventoryUpdated;
+			Level.onPreLevelLoaded -= OnPreLevelLoaded;
+			UnturnedPatches.OnPostSleepingPlayerStorageUpdate += OnSleepingPlayerStorageUpdated;
 		}
-		private void Update()
+
+        #region Events
+        private void Update()
 		{
 		}
 		private void OnLoginPlayerSpawning(SteamPlayerID playerID, ref Vector3 point, ref float yaw, ref EPlayerStance initialStance, ref bool needsNewSpawnpoint)
         {
             Dictionary<ushort, List<Item>> savedItems = tryGetItemsFromSleepingPlayer(playerID.steamID, point, ref needsNewSpawnpoint, ref initialStance);
-            connectingPlayerInventorys.Add(playerID.steamID, savedItems);
+            if(!connectingPlayerInventorys.ContainsKey(playerID.steamID)){
+				connectingPlayerInventorys.Add(playerID.steamID, savedItems);
+			}
         }
 
 		private void OnPlayerConnected(UnturnedPlayer player)
 		{
 			bool sucess = false;
 			Dictionary<ushort, List<Item>> savedItems;
-			
-			if (connectingPlayerInventorys.TryGetValue(player.CSteamID, out savedItems) && savedItems != null)
-            {
-				sucess = inventoryHelper.UpdateInventory(player, savedItems);
-				Logger.Log("Loading Inventory was " + (!sucess ? "not " : "") + "successful");
-			}
-			else
+			ITransportConnection transportConnection = Provider.findTransportConnection(player.CSteamID);
+			if (transportConnection == null)
 			{
-				sucess = inventoryHelper.ClearAll(player);
-				player.Damage(255, player.Position, EDeathCause.SUICIDE, ELimb.SKULL, player.CSteamID);
-				Logger.Log("Clearing Inventory was " + (!sucess ? "not " : "") + "successful");
+				Logger.LogError("Error in tranport connection for player: "+ player.CSteamID);
+				return;
 			}
+
+			if (Provider.findPlayer(transportConnection) != null)
+            {
+				if (connectingPlayerInventorys.TryGetValue(player.CSteamID, out savedItems) && savedItems != null)
+				{
+					sucess = inventoryHelper.UpdateInventory(player, savedItems);
+					Logger.Log("Loading Inventory was " + (!sucess ? "not " : "") + "successful");
+				}
+				else
+				{
+					sucess = inventoryHelper.ClearAll(player);
+					player.Damage(255, player.Position, EDeathCause.SUICIDE, ELimb.SKULL, player.CSteamID);
+					Logger.Log("Clearing Inventory was " + (!sucess ? "not " : "") + "successful");
+				}
+			}
+			
 			connectingPlayerInventorys.Remove(player.CSteamID);
 
 		}
@@ -94,20 +115,38 @@ namespace SpeedMann.SleepingPlayers
 				spawnSleepingPlayer(player);
 			}
 		}
-		private static void OnGestureChanged(UnturnedPlayer player, UnturnedPlayerEvents.PlayerGesture gesture)
+		private void OnInventoryUpdated(UnturnedPlayer player, InventoryGroup inventoryGroup, byte inventoryIndex, ItemJar P)
 		{
-			if (gesture != UnturnedPlayerEvents.PlayerGesture.InventoryOpen)
-				return;
-			Logger.Log("Inventory Opened!");
+			if(P.item.id == Conf.SleepingPlayerStorageId)
+            {
+				player.Inventory.removeItem((byte)inventoryGroup, inventoryIndex);
+				UnturnedChat.Say(player, "You should not have this!", Color.red);
+			}
 		}
-		private void OnOpenStorage(CSteamID instigator, InteractableStorage storage, ref bool shouldAllow)
-        {
-			//storage.GetComponent<>
-			Logger.Log("Storage Opened!");
+		private void OnPreLevelLoaded(int level) 
+		{
+			if (Conf.StorageHeight > 0)
+			{
+				Asset SleepingPalyerAsset = Assets.find(EAssetType.ITEM, Conf.SleepingPlayerStorageId);
+				if (SleepingPalyerAsset != null)
+                {
+					UnturnedPrivateFields.setStorageY((ItemStorageAsset)SleepingPalyerAsset, Conf.StorageHeight);
+					Logger.Log("Resized SleepingPlayer Asset: "+ SleepingPalyerAsset.name +" new size is: ["+ ((ItemStorageAsset)SleepingPalyerAsset).storage_x + ", "+ ((ItemStorageAsset)SleepingPalyerAsset).storage_y +"]");
+					return;
+				}
+				Logger.LogError("Resize SleepingPlayer Asset Failed!");
+			}
 		}
-		public void spawnSleepingPlayer(UnturnedPlayer player)
+		private void OnSleepingPlayerStorageUpdated(InteractableStorage interactableStorage, ItemStorageAsset asset)
         {
-			ItemBarricadeAsset asset = (Assets.find(EAssetType.ITEM, Configuration.Instance.SleepingPlayerStorageId) as ItemBarricadeAsset);
+			StorageHelper.fitStorage(interactableStorage, asset);
+		}
+        #endregion
+
+        #region SleepingPlayerLogic
+        public void spawnSleepingPlayer(UnturnedPlayer player)
+        {
+			ItemBarricadeAsset asset = (Assets.find(EAssetType.ITEM, Conf.SleepingPlayerStorageId) as ItemBarricadeAsset);
 			Vector3 position = new Vector3(player.Position.x, player.Position.y + asset.offset, player.Position.z);
 
 			Transform barricadeTransform = BarricadeManager.dropBarricade(new Barricade(asset), null, position, 0, 0, 0, player.CSteamID.m_SteamID, 0);
@@ -124,8 +163,14 @@ namespace SpeedMann.SleepingPlayers
 					storage.items.tryAddItem(item);
 				}
 				Logger.Log("Spawned SleepingPlayer for: " + player.CSteamID + " at " + position.ToString());
+
+                if (Conf.AutoResize)
+                {
+					StorageHelper.fitStorage(storage, (ItemStorageAsset)asset);
+				}
 			}
 		}
+       
 		public Dictionary<ushort, List<Item>> tryGetItemsFromSleepingPlayer(CSteamID steamID, Vector3 point, ref bool needsNewSpawnpoint, ref EPlayerStance initialStance)
         {
 			Transform sleepingPlayerTransform = findSleepingPlayer(point, SleepingPlayerSearchRadius, steamID);
@@ -197,6 +242,8 @@ namespace SpeedMann.SleepingPlayers
 			}
 			return null;
 		}
+        #endregion
+
         #region HelperFunctions
         private static Dictionary<ushort, List<Item>> getItemsFromStorage(InteractableStorage storage)
 		{

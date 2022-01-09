@@ -7,6 +7,9 @@ namespace SpeedMann.SleepingPlayers
 	{
 		public ushort SleepingPlayerStorageId;
 		public bool Debug;
+		public byte StorageHeight;
+		public bool AutoResize;
+
 		public SleepingPlayerConfiguration ()
 		{
 
@@ -15,6 +18,8 @@ namespace SpeedMann.SleepingPlayers
 		public void LoadDefaults()
 		{
 			SleepingPlayerStorageId = 52200;
+			StorageHeight = 25;
+			AutoResize = true;
 			Debug = false;
 		}
 	}

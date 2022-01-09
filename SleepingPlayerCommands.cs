@@ -57,13 +57,13 @@ namespace SpeedMann.SleepingPlayers
                 switch (command[0].ToLower())
                 {
                     case "sleep":
-                        SleepingPlayers.Instance.spawnSleepingPlayer(player);
+                        SleepingPlayers.Inst.spawnSleepingPlayer(player);
                         break;
                     case "wakeup":
                         bool needsNewSpawnpoint = true;
                         EPlayerStance stance = EPlayerStance.STAND;
 
-                        if(SleepingPlayers.Instance.tryGetItemsFromSleepingPlayer(player.CSteamID, player.Position, ref needsNewSpawnpoint, ref stance) != null)
+                        if(SleepingPlayers.Inst.tryGetItemsFromSleepingPlayer(player.CSteamID, player.Position, ref needsNewSpawnpoint, ref stance) != null)
                             UnturnedChat.Say(caller, "Found and removed your SleepingPlayer", UnityEngine.Color.green);
                         else
                             UnturnedChat.Say(caller, "Could not find your SleepingPlayer", UnityEngine.Color.red);

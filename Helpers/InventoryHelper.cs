@@ -25,7 +25,7 @@ namespace SpeedMann.SleepingPlayers
 				if (!GetClothingItems(player, ref clothingItems))
 					return false;
 
-				if(SleepingPlayers.Instance.Configuration.Instance.Debug)
+				if(SleepingPlayers.Inst.Configuration.Instance.Debug)
 					Logger.Log("Found " + clothingItems.Count + " Clothing items");
 				foreach (KeyValuePair<StorageType, Item> item in clothingItems)
 				{
