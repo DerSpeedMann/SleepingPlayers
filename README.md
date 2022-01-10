@@ -22,7 +22,7 @@ The plugin should be used with this [mod](https://steamcommunity.com/sharedfiles
     - Storage_X 10 (10 is max to still be visible on most resolutions)
     - Storage_Y 25 (storage size 250 is recommended for Vanilla)
     - Vulnerable (to allow damage by any means)
-    - DONT ADD! Unpickupable (this would break the plugin because owner would not be set)
+    - __DONT ADD!__ Unpickupable (this would break the plugin because owner would not be set)
 
 - __StorageHeight__: Sets the default / max height of all new SleepingPlayers
  
