@@ -24,7 +24,7 @@ namespace SpeedMann.SleepingPlayers
 				{
 					if(foundY == 0)
                     {
-						break;
+						foundY = 1;
                     }
 					StateUpdated backup = storage.items.onStateUpdated;
 					storage.items.onStateUpdated = null;
