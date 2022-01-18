@@ -146,7 +146,7 @@ namespace SpeedMann.SleepingPlayers
         #region SleepingPlayerLogic
         public void spawnSleepingPlayer(UnturnedPlayer player)
         {
-			ItemBarricadeAsset asset = (Assets.find(EAssetType.ITEM, Conf.SleepingPlayerStorageId) as ItemBarricadeAsset);
+			ItemStorageAsset asset = (Assets.find(EAssetType.ITEM, Conf.SleepingPlayerStorageId) as ItemStorageAsset);
 			Vector3 position = new Vector3(player.Position.x, player.Position.y + asset.offset, player.Position.z);
 
 			Transform barricadeTransform = BarricadeManager.dropBarricade(new Barricade(asset), null, position, 0, 0, 0, player.CSteamID.m_SteamID, 0);
@@ -157,6 +157,7 @@ namespace SpeedMann.SleepingPlayers
 			{
 				List<Item> items = new List<Item>();
 				inventoryHelper.GetAllItems(player, ref items);
+				storage.items.resize(asset.storage_x, asset.storage_y);
 
 				foreach (var item in items)
 				{
