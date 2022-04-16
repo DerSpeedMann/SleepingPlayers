@@ -243,7 +243,7 @@ namespace SpeedMann.SleepingPlayers
 			}
 			catch (Exception e)
 			{
-				Logger.Log("There was an error getting itmes from " + player.CharacterName + "'s inventory.  Here is the error.");
+				Logger.Log("There was an error getting items from " + player.CharacterName + "'s inventory.  Here is the error.");
 				Console.Write(e);
 			}
             return returnv;
