@@ -14,6 +14,7 @@ namespace SpeedMann.SleepingPlayers
 		public bool AutoResize = true;
 		public bool PreventPickup = true;
 		public bool AllowEmptySleepingPlayers = false;
+		public bool AllowSleepingPlayersInSafezone = false;
 		[XmlArrayItem(ElementName = "CSteamID")]
 		public List<ulong> UnsavedPlayers = new List<ulong>();
 

@@ -102,7 +102,9 @@ namespace SpeedMann.SleepingPlayers
             if (Conf.UnsavedPlayers.Contains(player.CSteamID.m_SteamID))
             {
 				List<Item> items = new List<Item>();
-				if(Conf.AllowEmptySleepingPlayers || !inventoryHelper.GetAllItems(player, ref items) || items.Count > 0)
+				// only show warning if no sleeper was spawned and no setting matches (player is empty or is in safezone)
+				if ((Conf.AllowEmptySleepingPlayers || !inventoryHelper.GetAllItems(player, ref items) || items.Count > 0) 
+					&& (Conf.AllowSleepingPlayersInSafezone || (!player.Player.movement.isSafe && !player.Player.movement.isSafeInfo.noWeapons)))
                 {
 					Logger.LogWarning($"Unsaved player returned {player.DisplayName} [{player.CSteamID}]");
 				}
@@ -164,6 +166,11 @@ namespace SpeedMann.SleepingPlayers
 					allowSleeper = false;
 				}
             }
+            if (!Conf.AllowSleepingPlayersInSafezone && (player.Player.movement.isSafe || player.Player.movement.isSafeInfo.noWeapons))
+            {
+				allowSleeper = false;
+			}
+
             if (allowSleeper)
             {
 				if (!player.Dead)
