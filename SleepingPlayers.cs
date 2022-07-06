@@ -22,7 +22,7 @@ namespace SpeedMann.SleepingPlayers
 		public static SleepingPlayers Inst;
 		public static SleepingPlayerConfiguration Conf;
 		private InventoryHelper inventoryHelper;
-		private string Version = "1.3.0";
+		private string Version = "1.3.1";
 
 		private float SleepingPlayerSearchRadius = 2;
 
@@ -68,7 +68,7 @@ namespace SpeedMann.SleepingPlayers
 			Provider.onLoginSpawning -= OnLoginPlayerSpawning;
 			UnturnedPlayerEvents.OnPlayerInventoryAdded -= OnInventoryUpdated;
 			Level.onPreLevelLoaded -= OnPreLevelLoaded;
-			UnturnedPatches.OnPostSleepingPlayerStorageUpdate += OnSleepingPlayerStorageUpdated;
+			UnturnedPatches.OnPostSleepingPlayerStorageUpdate -= OnSleepingPlayerStorageUpdated;
 		}
 
         #region Events
@@ -95,35 +95,89 @@ namespace SpeedMann.SleepingPlayers
 			if (transportConnection == null)
 			{
 				Logger.LogError("Error in tranport connection for player: "+ player.CSteamID);
+				connectingPlayerInventorys.Remove(player.CSteamID);
+				newPlayers.Remove(player.CSteamID);
 				return;
 			}
+            if (Conf.UnsavedPlayers.Contains(player.CSteamID.m_SteamID))
+            {
+				List<Item> items = new List<Item>();
+				if(Conf.AllowEmptySleepingPlayers || !inventoryHelper.GetAllItems(player, ref items) || items.Count > 0)
+                {
+					Logger.LogWarning($"Unsaved player returned {player.DisplayName} [{player.CSteamID}]");
+				}
+				
+				connectingPlayerInventorys.Remove(player.CSteamID);
+				newPlayers.Remove(player.CSteamID);
+				return;
+            }
 
 			if (Provider.findPlayer(transportConnection) != null && !newPlayers.Contains(player.CSteamID))
             {
 				if (connectingPlayerInventorys.TryGetValue(player.CSteamID, out savedItems) && savedItems != null)
 				{
 					success = inventoryHelper.UpdateInventory(player, savedItems);
-					Logger.Log("Loading Inventory was " + (!success ? "not " : "") + "successful");
+					if (success)
+					{
+						Logger.Log($"Loading Inventory for {player.DisplayName} was successful");
+					}
+					else
+					{
+						Logger.LogError($"Loading Inventory for {player.DisplayName} was not successful!");
+					}
 				}
 				else
 				{
 					success = inventoryHelper.ClearAll(player);
-					player.Damage(255, player.Position, EDeathCause.SUICIDE, ELimb.SKULL, player.CSteamID);
-					Logger.Log("Clearing Inventory was " + (!success ? "not " : "") + "successful");
+
+					// to kill player in safezone
+					player.Player.life.askDamage(255, Vector3.up, EDeathCause.SUICIDE, ELimb.SKULL, CSteamID.Nil, out EPlayerKill eplayerKill, false, ERagdollEffect.NONE, false, true);
+
+                    if (success)
+                    {
+						Logger.Log($"Clearing Inventory for {player.DisplayName} was successful");
+					}
+                    else
+                    {
+						Logger.LogError($"Clearing Inventory for {player.DisplayName} was not successful!");
+					}
+					
 				}
             }
 
 			newPlayers.Remove(player.CSteamID);
 			connectingPlayerInventorys.Remove(player.CSteamID);
-			
+
+			Conf.UnsavedPlayers.Add(player.CSteamID.m_SteamID);
+			Inst.Configuration.Save();
+
 		}
 
 		private void OnPlayerDisconnected(UnturnedPlayer player)
 		{
-            if (!player.Dead)
+			bool allowSleeper = true;
+            if (!Conf.AllowEmptySleepingPlayers)
             {
-				spawnSleepingPlayer(player);
-			}
+				List<Item> items = new List<Item>();
+				if(inventoryHelper.GetAllItems(player, ref items) && items.Count <= 0)
+                {
+					allowSleeper = false;
+				}
+            }
+            if (allowSleeper)
+            {
+				if (!player.Dead)
+				{
+					spawnSleepingPlayer(player);
+				}
+
+				Conf.UnsavedPlayers.Remove(player.CSteamID.m_SteamID);
+				Inst.Configuration.Save();
+            }
+            else
+            {
+				Logger.Log($"Inventory of {player.DisplayName} [{player.CSteamID}] was empty no SleepingPlayer was spawned");
+            }
 		}
 		private void OnInventoryUpdated(UnturnedPlayer player, InventoryGroup inventoryGroup, byte inventoryIndex, ItemJar P)
 		{
@@ -135,20 +189,26 @@ namespace SpeedMann.SleepingPlayers
 		}
 		private void OnPreLevelLoaded(int level) 
 		{
-			if (Conf.StorageHeight > 0)
+			if (Conf.StorageHeight > 0 && Conf.StorageWidth > 0)
 			{
 				ItemStorageAsset SleepingPalyerAsset = Assets.find(EAssetType.ITEM, Conf.SleepingPlayerStorageId) as ItemStorageAsset;
 				if (SleepingPalyerAsset != null)
                 {
+					UnturnedPrivateFields.setStorageX(SleepingPalyerAsset, Conf.StorageWidth);
 					UnturnedPrivateFields.setStorageY(SleepingPalyerAsset, Conf.StorageHeight);
+					
                     if (Conf.Debug)
                     {
 						Logger.Log("Resized SleepingPlayer Asset: " + SleepingPalyerAsset.name + " new size is: [" + (SleepingPalyerAsset).storage_x + ", " + (SleepingPalyerAsset).storage_y + "]");
 					}
 					return;
 				}
-				Logger.LogError("Resize SleepingPlayer Asset Failed!");
+				Logger.LogError($"Resize SleepingPlayer Asset Failed!" +
+                    $"Asset with Id: {Conf.SleepingPlayerStorageId} might not be a ItemStorageAsset");
+				return;
 			}
+			Logger.LogError($"Resize SleepingPlayer Asset Failed!" +
+					$"StorageWidth or Height <= 0");
 		}
 		private void OnSleepingPlayerStorageUpdated(InteractableStorage interactableStorage, ItemStorageAsset asset)
         {
@@ -161,9 +221,24 @@ namespace SpeedMann.SleepingPlayers
         {
 			ItemStorageAsset asset = (Assets.find(EAssetType.ITEM, Conf.SleepingPlayerStorageId) as ItemStorageAsset);
 			Vector3 position = new Vector3(player.Position.x, player.Position.y + asset.offset, player.Position.z);
+			Barricade barricade = new Barricade(asset);
+			Transform barricadeTransform = BarricadeManager.dropBarricade(barricade, null, position, 0, 0, 0, player.CSteamID.m_SteamID, 0);
 
-			Transform barricadeTransform = BarricadeManager.dropBarricade(new Barricade(asset), null, position, 0, 0, 0, player.CSteamID.m_SteamID, 0);
-
+			if(barricadeTransform == null)
+            {
+                if (Conf.Debug)
+                {
+					Logger.Log($"Placement of SleepingPlayer at {position} was restricted, trying to force place SleepingPlayer");
+				}
+				
+				// force drop barricade
+				Quaternion rotation = BarricadeManager.getRotation(barricade.asset, 0, 0, 0);
+				barricadeTransform = BarricadeManager.dropNonPlantedBarricade(barricade, position, rotation, player.CSteamID.m_SteamID, 0);
+			}
+			if(barricadeTransform == null){
+				Logger.LogError($"Could not place SleepingPlayer for: {player.DisplayName} [{player.CSteamID}] at {position}!");
+				return;
+            }
 			InteractableStorage storage = barricadeTransform.transform.GetComponent<InteractableStorage>();
 
 			if (storage != null)
@@ -176,7 +251,7 @@ namespace SpeedMann.SleepingPlayers
 				{
 					storage.items.tryAddItem(item);
 				}
-				Logger.Log($"Spawned SleepingPlayer for: {player.DisplayName} [{player.CSteamID}] at {position.ToString()}");
+				Logger.Log($"Spawned SleepingPlayer for: {player.DisplayName} [{player.CSteamID}] at {position}");
 				//TODO: add backpack baricade to store items > 200
 
                 if (Conf.AutoResize)

@@ -362,6 +362,11 @@ namespace SpeedMann.SleepingPlayers
 		public bool ClearClothes(UnturnedPlayer player)
 		{
 			bool returnv = false;
+			byte oldWidth = player.Inventory.items[2].width;
+			byte oldHeight = player.Inventory.items[2].height;
+
+			player.Inventory.items[2].resize(10, 10);
+
 			try
 			{
 				player.Player.clothing.askWearBackpack(0, 0, new byte[0],true);
@@ -406,6 +411,11 @@ namespace SpeedMann.SleepingPlayers
 				Logger.Log("There was an error clearing " + player.CharacterName + "'s inventory.  Here is the error.");
 				Console.Write(e);
 			}
+			finally
+			{
+				player.Inventory.items[2].resize(oldWidth, oldHeight);
+			}
+
 			return returnv;
 		}
 		public enum StorageType

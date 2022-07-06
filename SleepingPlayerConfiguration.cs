@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Xml.Serialization;
 using Rocket.API;
 
 namespace SpeedMann.SleepingPlayers
@@ -7,8 +9,13 @@ namespace SpeedMann.SleepingPlayers
 	{
 		public ushort SleepingPlayerStorageId;
 		public bool Debug;
-		public byte StorageHeight;
-		public bool AutoResize;
+		public byte StorageWidth = 10;
+		public byte StorageHeight = 25;
+		public bool AutoResize = true;
+		public bool PreventPickup = true;
+		public bool AllowEmptySleepingPlayers = false;
+		[XmlArrayItem(ElementName = "CSteamID")]
+		public List<ulong> UnsavedPlayers = new List<ulong>();
 
 		public SleepingPlayerConfiguration ()
 		{
@@ -17,10 +24,13 @@ namespace SpeedMann.SleepingPlayers
 
 		public void LoadDefaults()
 		{
+			Debug = false;
 			SleepingPlayerStorageId = 52200;
+			StorageWidth = 10;
 			StorageHeight = 25;
 			AutoResize = true;
-			Debug = false;
+			PreventPickup = true;
+			AllowEmptySleepingPlayers = false;
 		}
 	}
 }
