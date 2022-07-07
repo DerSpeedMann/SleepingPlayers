@@ -12,9 +12,8 @@ namespace SpeedMann.SleepingPlayers
 		public byte StorageWidth = 10;
 		public byte StorageHeight = 25;
 		public bool AutoResize = true;
-		public bool PreventPickup = true;
-		public bool AllowEmptySleepingPlayers = false;
-		public bool AllowSleepingPlayersInSafezone = false;
+		public bool AllowEmptySleepingPlayers = true;
+		public bool AllowSleepingPlayersInSafezone = true;
 		[XmlArrayItem(ElementName = "CSteamID")]
 		public List<ulong> UnsavedPlayers = new List<ulong>();
 
@@ -30,8 +29,8 @@ namespace SpeedMann.SleepingPlayers
 			StorageWidth = 10;
 			StorageHeight = 25;
 			AutoResize = true;
-			PreventPickup = true;
-			AllowEmptySleepingPlayers = false;
+			AllowEmptySleepingPlayers = true;
+			AllowSleepingPlayersInSafezone = true;
 		}
 	}
 }

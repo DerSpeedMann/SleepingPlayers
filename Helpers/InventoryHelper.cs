@@ -46,7 +46,7 @@ namespace SpeedMann.SleepingPlayers
 					if (!found)
 					{
 						Logger.Log("Removed " + item.Key);
-						//TODO: Fix Remove, currently only deequip
+
 						switch (item.Key)
 						{
 							case StorageType.Backpack:
@@ -117,10 +117,18 @@ namespace SpeedMann.SleepingPlayers
 								removedIndexes.Add(p1);
 							}
 						}
-						if(removedIndexes.Count > 0)
-                        {
+						if (removedIndexes.Count > 0)
+						{
 							if (p <= 1)
+                            {
 								Logger.Log("Removed " + (StorageType)p);
+								player.Player.inventory.channel.send("tellSlot", ESteamCall.ALL, ESteamPacket.UPDATE_RELIABLE_BUFFER, new object[]
+								{
+									p,
+									(byte)0,
+									new byte[0]
+								});
+							}	
 							else if (p <= 6)
 								Logger.Log("Removed " + removedIndexes.Count + " Items in " + (StorageType)p);
 							else
@@ -208,6 +216,105 @@ namespace SpeedMann.SleepingPlayers
 			return equals;
 
 
+		}
+		public void GetAllSavedItems(Player player, out List<Item> items)
+        {
+
+			items = new List<Item>();
+
+			if (PlayerSavedata.fileExists(player.channel.owner.playerID, "/Player/Inventory.dat"))
+			{
+				
+				Block block = PlayerSavedata.readBlock(player.channel.owner.playerID, "/Player/Inventory.dat", 0);
+				byte b = block.readByte();
+				if (b > 3)
+				{
+					for (byte b2 = 0; b2 < PlayerInventory.PAGES - 2; b2 += 1)
+					{
+						// two read byte for storage size which we dont need
+						byte width = block.readByte();
+						byte height = block.readByte();
+						byte b3 = block.readByte();
+						for (byte b4 = 0; b4 < b3; b4 += 1)
+						{
+							byte x = block.readByte();
+							byte y = block.readByte();
+							byte rot = 0;
+							if (b > 4)
+							{
+								rot = block.readByte();
+							}
+							ushort num = block.readUInt16();
+							byte newAmount = block.readByte();
+							byte newQuality = block.readByte();
+							byte[] newState = block.readByteArray();
+							if (Assets.find(EAssetType.ITEM, num) is ItemAsset)
+							{
+								items.Add(new Item(num, newAmount, newQuality, newState));
+							}
+						}
+					}
+				}
+			}
+
+			if (PlayerSavedata.fileExists(player.channel.owner.playerID, "/Player/Clothing.dat"))
+			{
+				Block block = PlayerSavedata.readBlock(player.channel.owner.playerID, "/Player/Clothing.dat", 0);
+				byte b = block.readByte();
+				if (b > 1)
+				{
+					List<Item> clothing = new List<Item>();
+					
+
+					for(int i = 0; i < 7; i++)
+                    {
+						ushort id = 0;
+						if (b > 6)
+						{
+							Guid guid = block.readGUID();
+							id = Assets.find(guid)?.id ?? 0;
+						}
+						else
+						{
+							id = block.readUInt16();
+						}
+						byte quality = block.readByte();
+						clothing.Add(new Item(id, true, quality));
+					}
+					
+					if (b > 2)
+					{
+						bool isVisual = block.readBoolean();
+					}
+					if (b > 5)
+					{
+						bool isSkinned = block.readBoolean();
+						bool isMythic = block.readBoolean();
+					}
+
+					if (b > 4)
+					{
+						foreach(Item item in clothing)
+                        {
+							item.state = block.readByteArray();
+						}
+					}
+					else
+					{
+						if (clothing[clothing.Count-1].id == 334)
+						{
+							clothing[clothing.Count - 1].state = new byte[1];
+						}
+					}
+					foreach (Item item in clothing)
+					{
+						if(item.id != 0)
+                        {
+							items.Add(item);
+                        }
+					}
+				}
+			}
 		}
 		public bool GetAllItems(UnturnedPlayer player, ref List<Item> foundItems)
         {

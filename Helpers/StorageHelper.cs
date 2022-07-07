@@ -26,6 +26,7 @@ namespace SpeedMann.SleepingPlayers
                     {
 						foundY = 1;
                     }
+					sizeX = SleepingPlayers.Conf.StorageWidth;
 					StateUpdated backup = storage.items.onStateUpdated;
 					storage.items.onStateUpdated = null;
 					storage.items.resize(sizeX, foundY);

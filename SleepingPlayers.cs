@@ -21,8 +21,11 @@ namespace SpeedMann.SleepingPlayers
 	{
 		public static SleepingPlayers Inst;
 		public static SleepingPlayerConfiguration Conf;
+		public static bool ModsLoaded = false;
+
 		private InventoryHelper inventoryHelper;
-		private string Version = "1.3.1";
+		private string Version;
+		
 
 		private float SleepingPlayerSearchRadius = 2;
 
@@ -40,7 +43,8 @@ namespace SpeedMann.SleepingPlayers
 		protected override void Load()
 		{
 			Inst = this;
-			Conf = Configuration.Instance;
+			Conf = Configuration.Instance; 
+			Version = readFileVersion();
 
 			inventoryHelper = new InventoryHelper();
 			connectingPlayerInventorys = new Dictionary<CSteamID, Dictionary<ushort, List<Item>>>();
@@ -51,20 +55,25 @@ namespace SpeedMann.SleepingPlayers
 			UnturnedPrivateFields.init();
 			UnturnedPatches.Init();
 
-			U.Events.OnPlayerConnected += OnPlayerConnected;
-			U.Events.OnPlayerDisconnected += OnPlayerDisconnected;
+			Provider.onServerConnected += OnPlayerConnected;
+			Provider.onServerDisconnected += OnPlayerDisconnected;
 			Provider.onLoginSpawning += OnLoginPlayerSpawning;
 			UnturnedPlayerEvents.OnPlayerInventoryAdded += OnInventoryUpdated;
 			Level.onPreLevelLoaded += OnPreLevelLoaded;
 			UnturnedPatches.OnPostSleepingPlayerStorageUpdate += OnSleepingPlayerStorageUpdated;
+
+			if (ModsLoaded == true) {
+				setSleeperAssetStorageSize();
+			}
 		}
 
 		protected override void Unload()
 		{
 			Logger.LogWarning("Unloading...");
+			UnturnedPatches.Cleanup();
 
-			U.Events.OnPlayerConnected -= OnPlayerConnected;
-			U.Events.OnPlayerDisconnected -= OnPlayerDisconnected;
+			Provider.onServerConnected -= OnPlayerConnected;
+			Provider.onServerDisconnected -= OnPlayerDisconnected;
 			Provider.onLoginSpawning -= OnLoginPlayerSpawning;
 			UnturnedPlayerEvents.OnPlayerInventoryAdded -= OnInventoryUpdated;
 			Level.onPreLevelLoaded -= OnPreLevelLoaded;
@@ -87,8 +96,15 @@ namespace SpeedMann.SleepingPlayers
             }
         }
 
-		private void OnPlayerConnected(UnturnedPlayer player)
+		private void OnPlayerConnected(CSteamID playerId)
 		{
+			if (playerId == CSteamID.Nil)
+			{
+				return;
+			}
+
+			UnturnedPlayer player = UnturnedPlayer.FromCSteamID(playerId);
+
 			bool success = false;
 			Dictionary<ushort, List<Item>> savedItems;
 			ITransportConnection transportConnection = Provider.findTransportConnection(player.CSteamID);
@@ -102,11 +118,19 @@ namespace SpeedMann.SleepingPlayers
             if (Conf.UnsavedPlayers.Contains(player.CSteamID.m_SteamID))
             {
 				List<Item> items = new List<Item>();
-				// only show warning if no sleeper was spawned and no setting matches (player is empty or is in safezone)
-				if ((Conf.AllowEmptySleepingPlayers || !inventoryHelper.GetAllItems(player, ref items) || items.Count > 0) 
-					&& (Conf.AllowSleepingPlayersInSafezone || (!player.Player.movement.isSafe && !player.Player.movement.isSafeInfo.noWeapons)))
+
+				if (!Conf.AllowEmptySleepingPlayers && inventoryHelper.GetAllItems(player, ref items) && items.Count <= 0)
                 {
-					Logger.LogWarning($"Unsaved player returned {player.DisplayName} [{player.CSteamID}]");
+					Logger.Log($"Empty player {player.DisplayName} [{player.CSteamID}] returned");
+				}
+                else if (!Conf.AllowSleepingPlayersInSafezone && (player.Player.movement.isSafe || (player.Player.movement?.isSafeInfo?.noWeapons ?? false)))
+                {
+					//TODO: fix safezone check (not yet in safezone)
+					Logger.Log($"Player {player.DisplayName} [{player.CSteamID}] returned to safezone");
+                }
+                else
+                {
+					Logger.Log($"Unsaved player {player.DisplayName} [{player.CSteamID}] returned");
 				}
 				
 				connectingPlayerInventorys.Remove(player.CSteamID);
@@ -155,8 +179,19 @@ namespace SpeedMann.SleepingPlayers
 
 		}
 
-		private void OnPlayerDisconnected(UnturnedPlayer player)
+		private void OnPlayerDisconnected(CSteamID playerId)
 		{
+			if(playerId == CSteamID.Nil)
+            {
+				return;
+            }
+            if(!Conf.UnsavedPlayers.Contains(playerId.m_SteamID))
+			{
+				Conf.UnsavedPlayers.Add(playerId.m_SteamID);
+				Inst.Configuration.Save();
+			}
+			UnturnedPlayer player = UnturnedPlayer.FromCSteamID(playerId);
+
 			bool allowSleeper = true;
             if (!Conf.AllowEmptySleepingPlayers)
             {
@@ -164,14 +199,17 @@ namespace SpeedMann.SleepingPlayers
 				if(inventoryHelper.GetAllItems(player, ref items) && items.Count <= 0)
                 {
 					allowSleeper = false;
+					Logger.Log($"Inventory of {player.DisplayName} [{player.CSteamID}] was empty no SleepingPlayer was spawned");
 				}
             }
-            if (!Conf.AllowSleepingPlayersInSafezone && (player.Player.movement.isSafe || player.Player.movement.isSafeInfo.noWeapons))
+
+			if (!Conf.AllowSleepingPlayersInSafezone && (player.Player.movement.isSafe || (player.Player.movement?.isSafeInfo?.noWeapons ?? false)))
             {
 				allowSleeper = false;
+				Logger.Log($"{player.DisplayName} [{player.CSteamID}] was in safezone no SleepingPlayer was spawned");
 			}
 
-            if (allowSleeper)
+			if (allowSleeper)
             {
 				if (!player.Dead)
 				{
@@ -180,10 +218,6 @@ namespace SpeedMann.SleepingPlayers
 
 				Conf.UnsavedPlayers.Remove(player.CSteamID.m_SteamID);
 				Inst.Configuration.Save();
-            }
-            else
-            {
-				Logger.Log($"Inventory of {player.DisplayName} [{player.CSteamID}] was empty no SleepingPlayer was spawned");
             }
 		}
 		private void OnInventoryUpdated(UnturnedPlayer player, InventoryGroup inventoryGroup, byte inventoryIndex, ItemJar P)
@@ -196,26 +230,8 @@ namespace SpeedMann.SleepingPlayers
 		}
 		private void OnPreLevelLoaded(int level) 
 		{
-			if (Conf.StorageHeight > 0 && Conf.StorageWidth > 0)
-			{
-				ItemStorageAsset SleepingPalyerAsset = Assets.find(EAssetType.ITEM, Conf.SleepingPlayerStorageId) as ItemStorageAsset;
-				if (SleepingPalyerAsset != null)
-                {
-					UnturnedPrivateFields.setStorageX(SleepingPalyerAsset, Conf.StorageWidth);
-					UnturnedPrivateFields.setStorageY(SleepingPalyerAsset, Conf.StorageHeight);
-					
-                    if (Conf.Debug)
-                    {
-						Logger.Log("Resized SleepingPlayer Asset: " + SleepingPalyerAsset.name + " new size is: [" + (SleepingPalyerAsset).storage_x + ", " + (SleepingPalyerAsset).storage_y + "]");
-					}
-					return;
-				}
-				Logger.LogError($"Resize SleepingPlayer Asset Failed!" +
-                    $"Asset with Id: {Conf.SleepingPlayerStorageId} might not be a ItemStorageAsset");
-				return;
-			}
-			Logger.LogError($"Resize SleepingPlayer Asset Failed!" +
-					$"StorageWidth or Height <= 0");
+			setSleeperAssetStorageSize();
+			ModsLoaded = true;
 		}
 		private void OnSleepingPlayerStorageUpdated(InteractableStorage interactableStorage, ItemStorageAsset asset)
         {
@@ -250,9 +266,8 @@ namespace SpeedMann.SleepingPlayers
 
 			if (storage != null)
 			{
-				List<Item> items = new List<Item>();
-				inventoryHelper.GetAllItems(player, ref items);
-				storage.items.resize(asset.storage_x, asset.storage_y);
+				inventoryHelper.GetAllSavedItems(player.Player, out List<Item> items);
+				storage.items.resize(Conf.StorageWidth, Conf.StorageHeight);
 
 				foreach (var item in items)
 				{
@@ -456,6 +471,36 @@ namespace SpeedMann.SleepingPlayers
 		{
 			return new Vector3(point.x, LevelGround.getHeight(point) + offset, point.z);
 		}
-        #endregion
-    }
+
+		private static string readFileVersion()
+        {
+			System.Reflection.Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
+			System.Diagnostics.FileVersionInfo fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
+			return fvi.FileVersion;
+		}
+        private static void setSleeperAssetStorageSize()
+        {
+			if (Conf.StorageHeight > 0 && Conf.StorageWidth > 0)
+			{
+				ItemStorageAsset SleepingPlayerAsset = Assets.find(EAssetType.ITEM, Conf.SleepingPlayerStorageId) as ItemStorageAsset;
+				if (SleepingPlayerAsset != null)
+				{
+					UnturnedPrivateFields.setStorageX(SleepingPlayerAsset, Conf.StorageWidth);
+					UnturnedPrivateFields.setStorageY(SleepingPlayerAsset, Conf.StorageHeight);
+
+					if (Conf.Debug)
+					{
+						Logger.Log("Resized SleepingPlayer Asset: " + SleepingPlayerAsset.name + " new size is: [" + (SleepingPlayerAsset).storage_x + ", " + (SleepingPlayerAsset).storage_y + "]");
+					}
+					return;
+				}
+				Logger.LogError($"Resize SleepingPlayer Asset Failed!" +
+					$"Asset with Id: {Conf.SleepingPlayerStorageId} might not be a ItemStorageAsset");
+				return;
+			}
+			Logger.LogError($"Resize SleepingPlayer Asset Failed!" +
+					$"StorageWidth or Height <= 0");
+		}
+		#endregion
+	}
 }

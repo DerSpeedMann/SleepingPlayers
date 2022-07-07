@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
 using SDG.Unturned;
+using Steamworks;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,6 +12,8 @@ namespace SpeedMann.SleepingPlayers
 {
     class UnturnedPatches
     {
+        private static Harmony harmony;
+        private static string harmonyId = "SpeedMann.SleepingPlayers";
         public class StorageState
         {
             public InteractableStorage interactableStorage;
@@ -21,7 +24,7 @@ namespace SpeedMann.SleepingPlayers
         {
             try
             {
-                Harmony harmony = new Harmony("SpeedMann.SleepingPlayers");
+                harmony = new Harmony(harmonyId);
                 harmony.PatchAll();
                 if (SleepingPlayers.Conf.Debug)
                 {
@@ -38,12 +41,34 @@ namespace SpeedMann.SleepingPlayers
                 Logger.LogError($"EventLoad: {e.Message}");
             }
         }
+        public static void Cleanup()
+        {
+            try
+            {
+                harmony.UnpatchAll(harmonyId);
+
+                if (SleepingPlayers.Conf.Debug)
+                {
+                    var myOriginalMethods = harmony.GetPatchedMethods();
+                    Logger.Log("Patched Methods:");
+                    foreach (var method in myOriginalMethods)
+                    {
+                        Logger.Log(" " + method.ToString());
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.LogError($"Unturnov patches: {e.Message}");
+            }
+        }
+
         #region Events
         public delegate void PostSleepingPlayerStorageUpdate(InteractableStorage storage, ItemStorageAsset asset);
 
         public static event PostSleepingPlayerStorageUpdate OnPostSleepingPlayerStorageUpdate;
         #endregion
-        
+
         #region Patches
         [HarmonyPatch(typeof(InteractableStorage), nameof(InteractableStorage.updateState))]
         class SleepingPlayerStorageUpdate
