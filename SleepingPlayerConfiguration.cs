@@ -14,6 +14,7 @@ namespace SpeedMann.SleepingPlayers
 		public bool AutoResize = true;
 		public bool AllowEmptySleepingPlayers = true;
 		public bool AllowSleepingPlayersInSafezone = true;
+		public bool IgnoreAdmins = false;
 		[XmlArrayItem(ElementName = "CSteamID")]
 		public List<ulong> UnsavedPlayers = new List<ulong>();
 
@@ -31,6 +32,7 @@ namespace SpeedMann.SleepingPlayers
 			AutoResize = true;
 			AllowEmptySleepingPlayers = true;
 			AllowSleepingPlayersInSafezone = true;
+			IgnoreAdmins = false;
 		}
 	}
 }

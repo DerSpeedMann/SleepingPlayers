@@ -14,6 +14,8 @@ using Steamworks;
 using System;
 using Rocket.Unturned.Chat;
 using SDG.NetTransport;
+using Rocket.API;
+using System.Linq;
 
 namespace SpeedMann.SleepingPlayers
 {
@@ -118,8 +120,11 @@ namespace SpeedMann.SleepingPlayers
             if (Conf.UnsavedPlayers.Contains(player.CSteamID.m_SteamID))
             {
 				List<Item> items = new List<Item>();
-
-				if (!Conf.AllowEmptySleepingPlayers && inventoryHelper.GetAllItems(player, ref items) && items.Count <= 0)
+				if ((player.IsAdmin && Conf.IgnoreAdmins) || player.GetPermissions().Any(x => x.Name == "sleepingplayer.bypass"))
+				{
+					Logger.Log($"{player.DisplayName} [{player.CSteamID}] with permission to bypass SleepingPlayer returned");
+				}
+				else if (!Conf.AllowEmptySleepingPlayers && inventoryHelper.GetAllItems(player, ref items) && items.Count <= 0)
                 {
 					Logger.Log($"Empty player {player.DisplayName} [{player.CSteamID}] returned");
 				}
@@ -185,6 +190,7 @@ namespace SpeedMann.SleepingPlayers
             {
 				return;
             }
+			// add player if not previously added
             if(!Conf.UnsavedPlayers.Contains(playerId.m_SteamID))
 			{
 				Conf.UnsavedPlayers.Add(playerId.m_SteamID);
@@ -193,7 +199,15 @@ namespace SpeedMann.SleepingPlayers
 			UnturnedPlayer player = UnturnedPlayer.FromCSteamID(playerId);
 
 			bool allowSleeper = true;
-            if (!Conf.AllowEmptySleepingPlayers)
+			// check admin of bypass
+			if ((player.IsAdmin && Conf.IgnoreAdmins) || player.GetPermissions().Any(x => x.Name == "sleepingplayer.bypass"))
+            {
+				allowSleeper = false;
+				Logger.Log($"{player.DisplayName} [{player.CSteamID}] has permission to bypass SleepingPlayer");
+			}
+			
+			// check empty inventory
+			if (!Conf.AllowEmptySleepingPlayers)
             {
 				List<Item> items = new List<Item>();
 				if(inventoryHelper.GetAllItems(player, ref items) && items.Count <= 0)
@@ -202,7 +216,7 @@ namespace SpeedMann.SleepingPlayers
 					Logger.Log($"Inventory of {player.DisplayName} [{player.CSteamID}] was empty no SleepingPlayer was spawned");
 				}
             }
-
+			// check in safezone
 			if (!Conf.AllowSleepingPlayersInSafezone && (player.Player.movement.isSafe || (player.Player.movement?.isSafeInfo?.noWeapons ?? false)))
             {
 				allowSleeper = false;
