@@ -9,16 +9,18 @@ namespace SpeedMann.SleepingPlayers
 {
     public class StorageHelper
     {
-		public static void fitStorage(InteractableStorage storage, ItemStorageAsset asset)
+		public static void fitStorageSize(InteractableStorage storage, ItemStorageAsset asset)
 		{
-			byte sizeX = asset.storage_x;
+			// resize to fix error with too small storages
+			StateUpdated backup = storage.items.onStateUpdated;
+			storage.items.onStateUpdated = null;
+			storage.items.resize(SleepingPlayers.Conf.StorageWidth, SleepingPlayers.Conf.StorageHeight);
+			storage.items.onStateUpdated = backup;
+
+			byte sizeX = SleepingPlayers.Conf.StorageWidth;
 			byte sizeY = 1;
 
-			byte foundX;
-			byte foundY;
-			byte foundRot;
-
-			while (storage.items.tryFindSpace(sizeX, sizeY, out foundX, out foundY, out foundRot))
+			while (storage.items.tryFindSpace(sizeX, sizeY, out byte foundX, out byte foundY, out byte foundRot))
 			{
 				if (foundRot == 0)
 				{
@@ -27,7 +29,6 @@ namespace SpeedMann.SleepingPlayers
 						foundY = 1;
                     }
 					sizeX = SleepingPlayers.Conf.StorageWidth;
-					StateUpdated backup = storage.items.onStateUpdated;
 					storage.items.onStateUpdated = null;
 					storage.items.resize(sizeX, foundY);
 					storage.items.onStateUpdated = backup;
@@ -39,6 +40,18 @@ namespace SpeedMann.SleepingPlayers
 					break;
 				}
 				sizeY++;
+			}
+		}
+		public static void setStorageSize(InteractableStorage storage, ItemStorageAsset asset)
+		{
+			byte sizeX = SleepingPlayers.Conf.StorageWidth;
+			byte sizeY = SleepingPlayers.Conf.StorageHeight;
+
+			storage.items.resize(sizeX, sizeY);
+
+			if (SleepingPlayers.Conf.Debug)
+			{
+				Logger.Log("SleepingPlayer storage resized to: [" + sizeX + ", " + sizeY + "]");
 			}
 		}
 	}

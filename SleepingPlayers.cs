@@ -23,7 +23,6 @@ namespace SpeedMann.SleepingPlayers
 	{
 		public static SleepingPlayers Inst;
 		public static SleepingPlayerConfiguration Conf;
-		public static bool ModsLoaded = false;
 
 		private InventoryHelper inventoryHelper;
 		private string Version;
@@ -64,8 +63,19 @@ namespace SpeedMann.SleepingPlayers
 			Level.onPreLevelLoaded += OnPreLevelLoaded;
 			UnturnedPatches.OnPostSleepingPlayerStorageUpdate += OnSleepingPlayerStorageUpdated;
 
-			if (ModsLoaded == true) {
+			if (Level.isLoaded) {
 				setSleeperAssetStorageSize();
+
+				foreach (var region in BarricadeManager.regions)
+				{
+					foreach (var drop in region.drops)
+					{
+						if (drop.interactable is InteractableStorage storage && drop.asset is ItemStorageAsset storageAsset && Conf.SleepingPlayerStorageId == storageAsset.id)
+						{
+							resizeSleeperStorage(storage, storageAsset);
+						}
+					}
+				}
 			}
 		}
 
@@ -245,11 +255,11 @@ namespace SpeedMann.SleepingPlayers
 		private void OnPreLevelLoaded(int level) 
 		{
 			setSleeperAssetStorageSize();
-			ModsLoaded = true;
 		}
+
 		private void OnSleepingPlayerStorageUpdated(InteractableStorage interactableStorage, ItemStorageAsset asset)
         {
-			StorageHelper.fitStorage(interactableStorage, asset);
+			resizeSleeperStorage(interactableStorage, asset);
 		}
         #endregion
 
@@ -292,7 +302,7 @@ namespace SpeedMann.SleepingPlayers
 
                 if (Conf.AutoResize)
                 {
-					StorageHelper.fitStorage(storage, asset);
+					StorageHelper.fitStorageSize(storage, asset);
 				}
 			}
 		}
@@ -514,6 +524,18 @@ namespace SpeedMann.SleepingPlayers
 			}
 			Logger.LogError($"Resize SleepingPlayer Asset Failed!" +
 					$"StorageWidth or Height <= 0");
+		}
+
+		private static void resizeSleeperStorage(InteractableStorage interactableStorage, ItemStorageAsset asset)
+        {
+			if (!Conf.AutoResize)
+			{
+				StorageHelper.setStorageSize(interactableStorage, asset);
+			}
+			else
+			{
+				StorageHelper.fitStorageSize(interactableStorage, asset);
+			}
 		}
 		#endregion
 	}
